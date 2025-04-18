@@ -1,10 +1,13 @@
-	--SELECT *
-	--FROM CovidDeaths
-	--ORDER BY 3,4
 
-	--SELECT *
-	--FROM CovidVaccinations
-	--ORDER BY 3,4
+	--Let's take a look into our Tables
+
+	SELECT *
+	FROM CovidDeaths
+	ORDER BY 3,4
+
+	SELECT *
+	FROM CovidVaccinations
+	ORDER BY 3,4
 
 	-- Select the Data that i'm gonna be using
 
