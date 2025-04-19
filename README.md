@@ -11,3 +11,5 @@
 - Excel (Pivot Tables, Charts)
 - Power BI (Dashboards)
   
+##### *Here's the Excel Dashboard showing Total sales over time by Roast Names, Total sales by country etc.*
+![ExcelDashboard](Excel_CoffeeSales.png)
