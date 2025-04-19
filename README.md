@@ -7,6 +7,7 @@
 
  ## 🧰 Here Are the Tools that I've Used:
  
-- SQL Server
+- SQL Server (EDA, Data Cleaning)
 - Excel (Pivot Tables, Charts)
-- Power BI 
+- Power BI (Dashboards)
+  
