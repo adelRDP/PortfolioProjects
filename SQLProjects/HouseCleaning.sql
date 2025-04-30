@@ -1,180 +1,188 @@
 -- Cleaning Housing Data in SQL 
 
-
-Select *
-From HousingDataCleaning.dbo.NashvilleHousing
+	SELECT * 
+	FROM HousingDataCleaning.dbo.NashvilleHousing
 
 --------------------------------------------------------------------------------------------------------------------------
 
--- Standardize Date Format
+-- Convert DateTime to Date (get rid of Useless 00:00:00s)
 
+	SELECT SaleDate ,Convert(date, SaleDate)
+	FROM HousingDataCleaning.dbo.NashvilleHousing
 
-Select saleDateConverted, CONVERT(Date,SaleDate)
-From HousingDataCleaning.dbo.NashvilleHousing
-
-
-Update NashvilleHousing
-SET SaleDate = CONVERT(Date,SaleDate)
+	Update HousingDataCleaning.dbo.NashvilleHousing
+	SET SaleDate = Convert(date, SaleDate)
 
 -- If it doesn't Update properly
 
-ALTER TABLE NashvilleHousing
-Add SaleDateConverted Date;
+	-- Alter directly (Risky):
 
-Update NashvilleHousing
-SET SaleDateConverted = CONVERT(Date,SaleDate)
+	--ALTER TABLE NashvilleHousing
+	--ALTER COLUMN SaleDate DATE
+
+
+-- Make a new Converted Column (Safer):
+
+	ALTER TABLE NashvilleHousing
+	ADD SaleDateConverted DATE
+
+	UPDATE HousingDataCleaning.dbo.NashvilleHousing
+	SET SaleDateConverted = Convert(date, SaleDate)
+
+	-- Now Remove SaleDate
+	ALTER TABLE NashvilleHousing
+	DROP COLUMN SaleDate
+
+	-- Rename Back to SaleDate
+	EXEC sp_rename 'NashvilleHousing.SaleDateConverted', 'SaleDate', 'COLUMN'
+
+	-- Validate Results
+	SELECT SaleDate ,Convert(date, SaleDate)
+	FROM HousingDataCleaning.dbo.NashvilleHousing
 
 
  --------------------------------------------------------------------------------------------------------------------------
 
--- Populate Property Address data
-
-Select *
-From HousingDataCleaning.dbo.NashvilleHousing
---Where PropertyAddress is null
-order by ParcelID
+ -- Populate Property Address data
 
 
+	-- Finding rows that have same ParcelID but one has empty PropertyAddress
+	select *
+	FROM HousingDataCleaning.dbo.NashvilleHousing
+	WHERE parcelID IN	(Select ParcelID
+						From HousingDataCleaning.dbo.NashvilleHousing
+						Where PropertyAddress is null)
 
-Select a.ParcelID, a.PropertyAddress, b.ParcelID, b.PropertyAddress, ISNULL(a.PropertyAddress,b.PropertyAddress)
-From HousingDataCleaning.dbo.NashvilleHousing a
-JOIN HousingDataCleaning.dbo.NashvilleHousing b
-	on a.ParcelID = b.ParcelID
-	AND a.[UniqueID ] <> b.[UniqueID ]
-Where a.PropertyAddress is null
+	-- Find the exact ParcelIDs which have property addresses, and also NULL property addresses
+	SELECT L.ParcelID, L.PropertyAddress,R.ParcelID, R.PropertyAddress, ISNULL(L.PropertyAddress, R.PropertyAddress)
+	FROM HousingDataCleaning.dbo.NashvilleHousing L
+	JOIN HousingDataCleaning.dbo.NashvilleHousing R
+	ON L.ParcelID = R.ParcelID
+	AND L.[UniqueID ] != R.[UniqueID ]
+	WHERE L.PropertyAddress IS NULL
 
+	-- Now let's populate the Null Rows
+	UPDATE L
+	SET PropertyAddress = ISNULL(L.PropertyAddress, R.PropertyAddress)
+	FROM HousingDataCleaning.dbo.NashvilleHousing L
+	JOIN HousingDataCleaning.dbo.NashvilleHousing R
+	ON L.ParcelID = R.ParcelID
+	AND L.[UniqueID ] != R.[UniqueID ]
+	WHERE L.PropertyAddress IS NULL
 
-Update a
-SET PropertyAddress = ISNULL(a.PropertyAddress,b.PropertyAddress)
-From HousingDataCleaning.dbo.NashvilleHousing a
-JOIN HousingDataCleaning.dbo.NashvilleHousing b
-	on a.ParcelID = b.ParcelID
-	AND a.[UniqueID ] <> b.[UniqueID ]
-Where a.PropertyAddress is null
+	
+-- Checking to see if it worked as intended
+	Select COUNT(*)
+	From HousingDataCleaning.dbo.NashvilleHousing
+	Where PropertyAddress is null
 
-
-
-
---------------------------------------------------------------------------------------------------------------------------
+	-- AND THERE WE HAVE IT! 
+	-- NO NULLS IN THE PROPERTY ADDRESS COLUMN!
+	   
+ --------------------------------------------------------------------------------------------------------------------------
 
 -- Breaking out Address into Individual Columns (Address, City, State)
 
+	
+	Select PropertyAddress
+	From HousingDataCleaning.dbo.NashvilleHousing
 
-Select PropertyAddress
-From HousingDataCleaning.dbo.NashvilleHousing
---Where PropertyAddress is null
---order by ParcelID
+	-- This is what we want(Split by delimiter ,)
+	SELECT
+	SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1) Address,
+	SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress)) City
+	FROM HousingDataCleaning.dbo.NashvilleHousing
 
-SELECT
-SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1 ) as Address
-, SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) + 1 , LEN(PropertyAddress)) as Address
+	--Add Address and City columns
+	ALTER TABLE HousingDataCleaning.dbo.NashvilleHousing
+	ADD property_address NVARCHAR(255)
 
-From HousingDataCleaning.dbo.NashvilleHousing
+	ALTER TABLE HousingDataCleaning.dbo.NashvilleHousing
+	ADD property_city NVARCHAR(100)
 
+	UPDATE HousingDataCleaning.dbo.NashvilleHousing
+	SET property_address = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress)-1)
 
-ALTER TABLE NashvilleHousing
-Add PropertySplitAddress Nvarchar(255);
+	UPDATE HousingDataCleaning.dbo.NashvilleHousing
+	SET property_city = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress)+1, LEN(PropertyAddress))
 
-Update NashvilleHousing
-SET PropertySplitAddress = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) -1 )
+	-- Check results real Quick!
+	Select *
+	From HousingDataCleaning.dbo.NashvilleHousing
 
+-- Nice, as intended!
 
-ALTER TABLE NashvilleHousing
-Add PropertySplitCity Nvarchar(255);
+	-- Now let's fix OwnerAddress as well:
+	Select OwnerAddress
+	From HousingDataCleaning.dbo.NashvilleHousing
 
-Update NashvilleHousing
-SET PropertySplitCity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) + 1 , LEN(PropertyAddress))
+	-- Use PARSENAME this time
+	SELECT
+	PARSENAME(REPLACE(OwnerAddress, ',','.'),3),
+	PARSENAME(REPLACE(OwnerAddress, ',','.'),2),
+	PARSENAME(REPLACE(OwnerAddress, ',','.'),1)
+	From HousingDataCleaning.dbo.NashvilleHousing
 
+	--Add Owner Address, State and City columns
+	ALTER TABLE HousingDataCleaning.dbo.NashvilleHousing
+	ADD owner_address NVARCHAR(255)
 
+	ALTER TABLE HousingDataCleaning.dbo.NashvilleHousing
+	ADD owner_city NVARCHAR(100)
 
+	ALTER TABLE HousingDataCleaning.dbo.NashvilleHousing
+	ADD owner_state NVARCHAR(5)
 
-Select *
-From HousingDataCleaning.dbo.NashvilleHousing
+	UPDATE HousingDataCleaning.dbo.NashvilleHousing
+	SET owner_address = PARSENAME(REPLACE(OwnerAddress, ',','.'),3)
 
+	UPDATE HousingDataCleaning.dbo.NashvilleHousing
+	SET owner_city = PARSENAME(REPLACE(OwnerAddress, ',','.'),2)
 
+	UPDATE HousingDataCleaning.dbo.NashvilleHousing
+	SET owner_state = PARSENAME(REPLACE(OwnerAddress, ',','.'),1)
 
-
-
-Select OwnerAddress
-From HousingDataCleaning.dbo.NashvilleHousing
-
-
-Select
-PARSENAME(REPLACE(OwnerAddress, ',', '.') , 3)
-,PARSENAME(REPLACE(OwnerAddress, ',', '.') , 2)
-,PARSENAME(REPLACE(OwnerAddress, ',', '.') , 1)
-From HousingDataCleaning.dbo.NashvilleHousing
-
-
-
-ALTER TABLE NashvilleHousing
-Add OwnerSplitAddress Nvarchar(255);
-
-Update NashvilleHousing
-SET OwnerSplitAddress = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 3)
-
-
-ALTER TABLE NashvilleHousing
-Add OwnerSplitCity Nvarchar(255);
-
-Update NashvilleHousing
-SET OwnerSplitCity = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 2)
-
-
-
-ALTER TABLE NashvilleHousing
-Add OwnerSplitState Nvarchar(255);
-
-Update NashvilleHousing
-SET OwnerSplitState = PARSENAME(REPLACE(OwnerAddress, ',', '.') , 1)
+	-- Check the end results now!
+	Select *
+	From HousingDataCleaning.dbo.NashvilleHousing
 
 
-
-Select *
-From HousingDataCleaning.dbo.NashvilleHousing
-
-
-
+	--NOW THESE INFORMATION ARE MUCH MORE USEABLE!
 
 --------------------------------------------------------------------------------------------------------------------------
 
 
 -- Change Y and N to Yes and No in "Sold as Vacant" field
 
+	SELECT DISTINCT(SoldAsVacant), COUNT(SoldAsVacant)
+	FROM HousingDataCleaning.dbo.NashvilleHousing
+	GROUP BY SoldAsVacant
+	ORDER BY 2
 
-Select Distinct(SoldAsVacant), Count(SoldAsVacant)
-From HousingDataCleaning.dbo.NashvilleHousing
-Group by SoldAsVacant
-order by 2
+	-- Let's replace Y with Yes and N with No quickly:
+	SELECT SoldAsVacant,
+	CASE WHEN SoldAsVacant = 'N' THEN 'No'
+		 WHEN SoldAsVacant = 'Y' THEN 'Yes'
+		 ELSE SoldAsVacant
+		 END
+	FROM HousingDataCleaning.dbo.NashvilleHousing 
 
-
-
-
-Select SoldAsVacant
-, CASE When SoldAsVacant = 'Y' THEN 'Yes'
-	   When SoldAsVacant = 'N' THEN 'No'
-	   ELSE SoldAsVacant
-	   END
-From HousingDataCleaning.dbo.NashvilleHousing
-
-
-Update NashvilleHousing
-SET SoldAsVacant = CASE When SoldAsVacant = 'Y' THEN 'Yes'
-	   When SoldAsVacant = 'N' THEN 'No'
-	   ELSE SoldAsVacant
-	   END
-
-
-
-
+	-- NOW LET'S UPDATE THE TABLE
+	UPDATE HousingDataCleaning.dbo.NashvilleHousing
+	SET SoldAsVacant = 
+		 CASE WHEN SoldAsVacant = 'N' THEN 'No'
+		 WHEN SoldAsVacant = 'Y' THEN 'Yes'
+		 ELSE SoldAsVacant
+		 END
 
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- Remove Duplicates
-
-WITH RowNumCTE AS(
-Select *,
+	
+	--Lets see if we find any, Using CTE and Partition by
+	WITH RowNumCTE AS(
+	SELECT *,
 	ROW_NUMBER() OVER (
 	PARTITION BY ParcelID,
 				 PropertyAddress,
@@ -184,21 +192,38 @@ Select *,
 				 ORDER BY
 					UniqueID
 					) row_num
+	FROM HousingDataCleaning.dbo.NashvilleHousing
+	)
+	SELECT *
+	FROM RowNumCTE
+	WHERE row_num > 1
+	ORDER BY PropertyAddress
 
-From HousingDataCleaning.dbo.NashvilleHousing
---order by ParcelID
-)
-Select *
-From RowNumCTE
-Where row_num > 1
-Order by PropertyAddress
+	-- Now Let's delete these duplicates
+	WITH RowNumCTE AS(
+	SELECT *,
+	ROW_NUMBER() OVER (
+	PARTITION BY ParcelID,
+				 PropertyAddress,
+				 SalePrice,
+				 SaleDate,
+				 LegalReference
+				 ORDER BY
+					UniqueID
+					) row_num
+	FROM HousingDataCleaning.dbo.NashvilleHousing
+	)
+
+	DELETE
+	FROM RowNumCTE
+	WHERE row_num > 1
+
+	-- OK, Now Let's check
+	SELECT *
+	FROM HousingDataCleaning.dbo.NashvilleHousing
 
 
-
-Select *
-From HousingDataCleaning.dbo.NashvilleHousing
-
-
+	-- 104 DUPLICATE ROWS WERE DELETED!
 
 
 ---------------------------------------------------------------------------------------------------------
@@ -206,11 +231,8 @@ From HousingDataCleaning.dbo.NashvilleHousing
 -- Delete Unused Columns
 
 
+	ALTER TABLE HousingDataCleaning.dbo.NashvilleHousing
+	DROP COLUMN OwnerAddress, TaxDistrict, PropertyAddress
 
-Select *
-From HousingDataCleaning.dbo.NashvilleHousing
-
-
-ALTER TABLE HousingDataCleaning.dbo.NashvilleHousing
-DROP COLUMN OwnerAddress, TaxDistrict, PropertyAddress, SaleDate
-
+	SELECT *
+	FROM HousingDataCleaning.dbo.NashvilleHousing
