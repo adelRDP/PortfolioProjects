@@ -8,7 +8,7 @@
   - Who are the main source of their **Gross Margin**? Showing the distribution of customers by Gross Margin they provide for the company(scatter plot)
  
     
-    ![Plant](/plant_presentation1.gif)
+    ![Plant](https://github.com/adelRDP/PortfolioProjects/blob/main/Power%20BI%20Dashboards/Plant_Presentation1.gif)
 
 
 
